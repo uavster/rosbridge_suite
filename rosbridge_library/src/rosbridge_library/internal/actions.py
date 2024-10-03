@@ -165,19 +165,24 @@ class SendGoal:
         client = ActionClient(node_handle, action_class, action_name)
         client.wait_for_server(timeout_sec=self.server_timeout_time)
         send_goal_future = client.send_goal_async(inst, feedback_callback=feedback_cb)
-        send_goal_future.add_done_callback(self.goal_response_cb)
-
-        # while self.result is None and not self.goal_canceled:
-        #     rclpy.spin_once(node_handle)
-        #     time.sleep(self.sleep_time)
+        
+        if action_class.Result.get_fields_and_field_types():
+            # Only wait for result if it has any information.
+            send_goal_future.add_done_callback(self.goal_response_cb)
+            while self.result is None and not self.goal_canceled:
+                rclpy.spin_once(node_handle)
+                
+            if self.result is not None:
+                # Turn the response into JSON and pass to the callback
+                json_response = extract_values(self.result)
+            else:
+                raise Exception(self.result)
+              
+            client.destroy()
+            return json_response
 
         client.destroy()
-        if self.result is not None:
-            # Turn the response into JSON and pass to the callback
-            json_response = extract_values(self.result)
-        else:
-            raise Exception(self.result)
-        return json_response
+        return {}
 
     def cancel_goal(self) -> None:
         if self.goal_handle is None:
