@@ -43,11 +43,16 @@ from rosbridge_library.capabilities.advertise_service import AdvertiseService
 from rosbridge_library.capabilities.service_response import ServiceResponse
 from rosbridge_library.capabilities.unadvertise_service import UnadvertiseService
 
+from rosbridge_library.capabilities.action_feedback import ActionFeedback
+from rosbridge_library.capabilities.action_result import ActionResult
+from rosbridge_library.capabilities.advertise_action import AdvertiseAction
+from rosbridge_library.capabilities.send_action_goal import SendActionGoal
+from rosbridge_library.capabilities.unadvertise_action import UnadvertiseAction
 
 
 class RosbridgeProtocol(Protocol):
     """ Adds the handlers for the rosbridge opcodes """
-    rosbridge_capabilities = [CallService, Advertise, Publish, Subscribe, Defragment, AdvertiseService, ServiceResponse, UnadvertiseService]
+    rosbridge_capabilities = [CallService, Advertise, Publish, Subscribe, Defragment, AdvertiseService, CallService, ServiceResponse, UnadvertiseService, AdvertiseAction, ActionFeedback, ActionResult, SendActionGoal, UnadvertiseAction]
 
     print("registered capabilities (classes):")
     for cap in rosbridge_capabilities:

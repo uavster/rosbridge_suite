@@ -51,7 +51,7 @@ if sys.version_info >= (3, 0):
     "int":     ["int8", "byte", "uint8", "char",
                 "int16", "uint16", "int32", "uint32",
                 "int64", "uint64", "float32", "float64"],
-    "float":   ["float32", "float64", "double"],
+    "float":   ["float", "float32", "float64", "double"],
     "str":     ["string"]
     }
     primitive_types = [bool, int, float]
@@ -74,7 +74,7 @@ list_types = [list, tuple]
 ros_time_types = ["builtin_interfaces/Time", "builtin_interfaces/Duration"]
 ros_primitive_types = ["bool", "byte", "char", "int8", "uint8", "int16",
                        "uint16", "int32", "uint32", "int64", "uint64",
-                       "float32", "float64", "double", "string"]
+                       "float", "float32", "float64", "double", "string"]
 ros_header_types = ["Header", "std_msgs/Header", "roslib/Header"]
 ros_binary_types = ["uint8[]", "char[]"]
 list_tokens = re.compile('<(.+?)>')
@@ -238,8 +238,7 @@ def _to_inst(msg, rostype, roottype, inst=None, stack=[]):
 
     # Otherwise, the type has to be a full ros msg type, so msg must be a dict
     if inst is None:
-        inst = ros_loader.get_message_instance(rostype)
-
+        inst = ros_loader.get_message_instance(rostype)       
     return _to_object_inst(msg, rostype, roottype, inst, stack)
 
 

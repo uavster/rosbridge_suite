@@ -21,6 +21,8 @@
   <arg name="params_glob" default="''[*]''" />
   <arg name="bson_only_mode" default="false" />
 
+  <arg name="send_action_goals_in_new_thread" default="false" />
+
   <arg unless="$(var bson_only_mode)" name="binary_encoder" default="default"/>
 
   <group if="$(var ssl)">
@@ -36,6 +38,7 @@
       <param name="max_message_size" value="$(var max_message_size)"/>
       <param name="unregister_timeout" value="$(var unregister_timeout)"/>
       <param name="use_compression" value="$(var use_compression)"/>
+      <param name="send_action_goals_in_new_thread" value="$(var send_action_goals_in_new_thread)"/>
 
       <param name="topics_glob" value="$(var topics_glob)"/>
       <param name="services_glob" value="$(var services_glob)"/>
@@ -53,7 +56,8 @@
       <param name="max_message_size" value="$(var max_message_size)"/>
       <param name="unregister_timeout" value="$(var unregister_timeout)"/>
       <param name="use_compression" value="$(var use_compression)"/>
-
+      <param name="send_action_goals_in_new_thread" value="$(var send_action_goals_in_new_thread)"/>
+      
       <param name="topics_glob" value="$(var topics_glob)"/>
       <param name="services_glob" value="$(var services_glob)"/>
       <param name="params_glob" value="$(var params_glob)"/>
