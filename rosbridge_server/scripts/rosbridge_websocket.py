@@ -306,6 +306,11 @@ def main(args=None):
 
     spin_callback = PeriodicCallback(lambda: rclpy.spin_once(rosbridge_websocket_node, timeout_sec=0.01), 100)
     spin_callback.start()
+    
+    # Write the file that start.sh is waiting for to signal that the node has started and the server is ready.
+    with open("../.status/started", "w") as started_file:
+        started_file.write("1")
+
     start_hook()
 
     node.destroy_node()
