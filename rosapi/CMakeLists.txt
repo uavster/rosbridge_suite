@@ -9,9 +9,6 @@ if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 14)
 endif()
 
-ament_python_install_package(
-  ${PROJECT_NAME} PACKAGE_DIR "src/${PROJECT_NAME}")
-
 rosidl_generate_interfaces(${PROJECT_NAME}
   msg/TypeDef.msg
   srv/DeleteParam.srv
