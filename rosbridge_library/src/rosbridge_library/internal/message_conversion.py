@@ -72,7 +72,7 @@ else:
 
 list_types = [list, tuple]
 ros_time_types = ["builtin_interfaces/Time", "builtin_interfaces/Duration"]
-ros_primitive_types = ["bool", "byte", "char", "int8", "uint8", "int16",
+ros_primitive_types = ["bool", "boolean", "byte", "char", "int8", "uint8", "int16",
                        "uint16", "int32", "uint32", "int64", "uint64",
                        "float", "float32", "float64", "double", "string"]
 ros_header_types = ["Header", "std_msgs/Header", "roslib/Header"]
@@ -138,7 +138,6 @@ def populate_instance(msg, inst):
     """ Returns an instance of the provided class, with its fields populated
     according to the values in msg """
     inst_type = msg_instance_type_repr(inst)
-
     return _to_inst(msg, inst_type, inst_type, inst)
 
 
