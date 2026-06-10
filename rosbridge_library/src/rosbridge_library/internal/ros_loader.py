@@ -161,7 +161,6 @@ def _get_interface_class(
             subname = ".".join(splits[1:-1])
         else:
             subname = intf_type
-        
         return _get_class(typestring, subname, loaded_intfs, intf_lock)
     
     except (InvalidModuleException, InvalidClassException):
@@ -229,6 +228,8 @@ def _splittype(typestring):
     splits = [x for x in typestring.split("/") if x]
     if len(splits) == 3:
         return (splits[0], splits[2])
+    elif len(splits) == 2:
+        return splits
     raise InvalidTypeStringException(typestring)
 
 
