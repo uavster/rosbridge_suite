@@ -40,6 +40,8 @@ import sys
 import threading
 import traceback
 from functools import partial, wraps
+import socket
+import time
 
 from tornado import version_info as tornado_version_info
 from tornado.ioloop import IOLoop
@@ -69,7 +71,31 @@ def log_exceptions(f):
             _log_exception()
             raise
     return wrapper
+  
 
+def _get_raw_socket(handler):
+    """
+    Return the underlying socket.socket for a Tornado WebSocketHandler,
+    or None if it can't be located. Works across Tornado versions.
+    """
+    candidates = []
+    # Newer Tornado (>=4.x): HTTP/1 connection holds the IOStream.
+    conn = getattr(handler.request, "connection", None)
+    if conn is not None:
+        candidates.append(getattr(conn, "stream", None))
+        # Some versions: connection.detach() returns the stream; some keep `iostream`.
+        candidates.append(getattr(conn, "iostream", None))
+    # Some Tornado releases exposed it directly on the WS connection.
+    ws_conn = getattr(handler, "ws_connection", None)
+    if ws_conn is not None:
+        candidates.append(getattr(ws_conn, "stream", None))
+
+    for s in candidates:
+        sock = getattr(s, "socket", None)
+        if sock is not None:
+            return sock
+    return None
+  
 
 class RosbridgeWebSocket(WebSocketHandler):
     client_id_seed = 0
@@ -111,7 +137,35 @@ class RosbridgeWebSocket(WebSocketHandler):
                 cls.client_manager.add_client(self.client_id, self.request.remote_ip)
         except Exception as exc:
             cls.node_handle.get_logger().error("Unable to accept incoming connection.  Reason: {}".format(exc))
+            # Force-close so we don't leave a phantom handler around.
+            try: self.close()
+            except Exception: pass
+            return
 
+        # Capture the IOLoop that owns this handler so worker threads can
+        # schedule writes from any thread safely (Python 3.10 asyncio no longer
+        # auto-creates a loop in non-main threads).
+        self._ioloop = IOLoop.current()
+
+        sock = _get_raw_socket(self)
+        if sock is None:
+            cls.node_handle.get_logger().warn("Could not locate underlying socket; TCP keepalive not enabled.")
+        else:
+            try:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+                if sys.platform.startswith("linux"):
+                    for opt_name, val in (("TCP_KEEPIDLE", 30), ("TCP_KEEPINTVL", 10),
+                                      ("TCP_KEEPCNT", 3), ("TCP_USER_TIMEOUT", 60_000)):
+                        if hasattr(socket, opt_name):
+                            sock.setsockopt(socket.IPPROTO_TCP, getattr(socket, opt_name), val)
+                # Verify
+                ka = sock.getsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE)
+                cls.node_handle.get_logger().info(
+                    "TCP keepalive enabled (SO_KEEPALIVE={}) on fd={}".format(ka, sock.fileno()))
+            except Exception as e:
+                cls.node_handle.get_logger().warn(
+                    "Failed to enable TCP keepalive: {}".format(e))                
+        
         cls.node_handle.get_logger().info("Client connected. {} clients total.".format(cls.clients_connected))
         if cls.authenticate:
             cls.node_handle.get_logger().info("Awaiting proper authentication...")
@@ -169,10 +223,25 @@ class RosbridgeWebSocket(WebSocketHandler):
     @log_exceptions
     def on_close(self):
         cls = self.__class__
-        cls.clients_connected -= 1
-        self.protocol.finish()
+        cls.clients_connected = max(0, cls.clients_connected - 1)
+        try:
+          if getattr(self, "protocol", None) is not None:
+            self.protocol.finish()
+        except Exception:
+          pass
         if cls.client_manager:
+          try:
             cls.client_manager.remove_client(self.client_id, self.request.remote_ip)
+          except Exception:
+            pass
+            
+        try:
+            if getattr(self, "_watchdog", None) is not None:
+                IOLoop.current().remove_timeout(self._watchdog)
+                self._watchdog = None
+        except Exception:
+            pass
+        
         cls.node_handle.get_logger().info("Client disconnected. {} clients total.".format(cls.clients_connected))
 
     def send_message(self, message):
@@ -184,8 +253,17 @@ class RosbridgeWebSocket(WebSocketHandler):
         else:
             binary = False
 
-        with self._write_lock:
-            IOLoop.instance().add_callback(partial(self.prewrite_message, message, binary))
+        # Note: do NOT take self._write_lock here — add_callback is thread-safe
+        # and the lock is only needed inside prewrite_message which runs on
+        # the IOLoop thread.
+        loop = getattr(self, "_ioloop", None)
+        if loop is None:
+            # Defensive fallback: try to find the running loop (should not happen).
+            try:
+                loop = IOLoop.current()
+            except Exception:
+                return  # nothing we can do; connection is shutting down
+        loop.add_callback(partial(self.prewrite_message, message, binary))
 
     @coroutine
     def prewrite_message(self, message, binary):

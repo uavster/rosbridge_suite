@@ -120,7 +120,10 @@ def call_service(node_handle, service, args=None):
     client = node_handle.create_client(service_class, service)
 
     future = client.call_async(inst)
-    spin_until_future_complete(node_handle, future)
+    spin_until_future_complete(node_handle, future, timeout_sec=10.0)
+    if not future.done():
+        future.cancel()
+        raise TimeoutError("Service call to %r timed out" % self.service)
     if future.result() is not None:
         # Turn the response into JSON and pass to the callback
         json_response = extract_values(future.result())

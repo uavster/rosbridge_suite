@@ -87,7 +87,7 @@ class CallService(Capability):
         e_cb = partial(self._failure, cid, service)
 
         # Run service caller in the same thread.
-        ServiceCaller(trim_servicename(service), args, s_cb, e_cb, self.protocol.node_handle).run()
+        ServiceCaller(trim_servicename(service), args, s_cb, e_cb, self.protocol.node_handle).start()
 
     def _success(self, cid, service, fragment_size, compression, message):
         outgoing_message = {
