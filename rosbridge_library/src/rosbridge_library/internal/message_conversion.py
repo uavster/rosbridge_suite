@@ -37,8 +37,11 @@ from rclpy.clock import ROSClock
 
 from rosbridge_library.internal import ros_loader
 
+import array
 import math
 import re
+
+import numpy
 import string
 from base64 import standard_b64encode, standard_b64decode
 
@@ -70,7 +73,10 @@ else:
     primitive_types = [bool, int, long, float]
     python2 = True
 
-list_types = [list, tuple]
+# In ROS 2, sequences of numbers are array.array and fixed-size arrays numpy arrays, not lists: without
+# them here, a JSON list for e.g. trajectory_msgs/JointTrajectoryPoint.positions was rejected as "requires
+# a sequence<double> ... but got a <class 'list'>" (2026-11-08).
+list_types = [list, tuple, array.array, numpy.ndarray]
 ros_time_types = ["builtin_interfaces/Time", "builtin_interfaces/Duration"]
 ros_primitive_types = ["bool", "boolean", "byte", "char", "int8", "uint8", "int16",
                        "uint16", "int32", "uint32", "int64", "uint64",
@@ -78,6 +84,14 @@ ros_primitive_types = ["bool", "boolean", "byte", "char", "int8", "uint8", "int1
 ros_header_types = ["Header", "std_msgs/Header", "roslib/Header"]
 ros_binary_types = ["uint8[]", "char[]"]
 list_tokens = re.compile('<(.+?)>')
+
+
+def _list_element_type(rostype):
+    """The type of a list's elements: T for sequence<T>, sequence<T, N> (bounded) and T[N] (fixed size)."""
+    match = re.search(list_tokens, rostype)
+    if match:
+        return match.group(1).split(',')[0].strip()
+    return rostype.split('[')[0]
 ros_binary_types_list_braces = [("uint8[]", re.compile(r'uint8\[[^\]]*\]')),
                                 ("char[]", re.compile(r'char\[[^\]]*\]'))]
 
@@ -197,7 +211,11 @@ def _from_list_inst(inst, rostype):
         return []
 
     # Remove the list indicators from the rostype
-    rostype = re.search(list_tokens, rostype).group(1)
+    rostype = _list_element_type(rostype)
+
+    # Arrays hold numpy or array scalars: their Python values are what JSON can encode.
+    if hasattr(inst, 'tolist'):
+        inst = inst.tolist()
 
     # Shortcut for primitives
     if rostype in ros_primitive_types and not rostype in type_map.get('float'):
@@ -282,6 +300,10 @@ def _to_time_inst(msg, rostype, inst=None):
 def _to_primitive_inst(msg, rostype, roottype, stack):
     # Typecheck the msg
     msgtype = type(msg)
+    # JSON has a single number type, so 0 arrives as an int for a float field. ROS 2 messages refuse ints
+    # in float fields, and "double", Humble's name for float64, was not in the int's types (2026-11-08).
+    if msgtype is int and rostype in type_map["float"]:
+        return float(msg)
     if msgtype in primitive_types and rostype in type_map[msgtype.__name__]:
         return msg
     elif msgtype in string_types and rostype in type_map[msgtype.__name__]:
@@ -299,7 +321,7 @@ def _to_list_inst(msg, rostype, roottype, inst, stack):
         return []
 
     # Remove the list indicators from the rostype
-    rostype = re.search(list_tokens, rostype).group(1)
+    rostype = _list_element_type(rostype)
 
     # Call to _to_inst for every element of the list
     return [_to_inst(x, rostype, roottype, None, stack) for x in msg]
